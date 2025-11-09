@@ -1,77 +1,215 @@
-var params = new URLSearchParams(window.location.search);
-// Odzyskaj obraz z localStorage jeśli istnieje
-const savedImage = localStorage.getItem('userImage');
-if (savedImage) {
-    params.set('image', savedImage);
-}
 
-document.querySelector(".login").addEventListener('click', () => {
-    toHome();
+var selector = document.querySelector(".selector_box");
+selector.addEventListener('click', () => {
+    if (selector.classList.contains("selector_open")){
+        selector.classList.remove("selector_open")
+    }else{
+        selector.classList.add("selector_open")
+    }
+})
+
+document.querySelectorAll(".date_input").forEach((element) => {
+    element.addEventListener('click', () => {
+        document.querySelector(".date").classList.remove("error_shown")
+    })
+})
+
+var sex = "m"
+
+document.querySelectorAll(".selector_option").forEach((option) => {
+    option.addEventListener('click', () => {
+        sex = option.id;
+        document.querySelector(".selected_text").innerHTML = option.innerHTML;
+    })
+})
+
+var upload = document.querySelector(".upload");
+
+var imageInput = document.createElement("input");
+imageInput.type = "file";
+imageInput.accept = ".jpeg,.png,.gif";
+
+document.querySelectorAll(".input_holder").forEach((element) => {
+
+    var input = element.querySelector(".input");
+    input.addEventListener('click', () => {
+        element.classList.remove("error_shown");
+    })
+
 });
 
-var welcome = "Dzień dobry!";
+upload.addEventListener('click', () => {
+    imageInput.click();
+    upload.classList.remove("error_shown")
+});
 
-var date = new Date();
-if (date.getHours() >= 18){
-    welcome = "Dobry wieczór!"
-}
-document.querySelector(".welcome").innerHTML = welcome;
+imageInput.addEventListener('change', (event) => {
 
-function toHome(){
-    location.href = 'home.html?' + params.toString();
-}
+    upload.classList.remove("upload_loaded");
+    upload.classList.add("upload_loading");
 
-var input = document.querySelector(".password_input");
-input.addEventListener("keypress", (event) => {
-    if (event.key === 'Enter') {
-        document.activeElement.blur();
-    }
-})
+    upload.removeAttribute("selected")
 
-var dot = "•";
-var original = "";
-var eye = document.querySelector(".eye");
-
-input.addEventListener("input", () => {
-    var value = input.value.toString();
-    var char = value.substring(value.length - 1);
-    if (value.length < original.length){
-        original = original.substring(0, original.length - 1);
-    }else{
-        original = original + char;
+    var file = imageInput.files[0];
+    
+    if (!file) {
+        upload.classList.remove("upload_loading");
+        return;
     }
 
-    if (!eye.classList.contains("eye_close")){
-        var dots = "";
-        for (var i = 0; i < value.length - 1; i++){
-            dots = dots + dot
+    // Sprawdź rozmiar pliku (max 10MB dla bezpieczeństwa)
+    if (file.size > 10 * 1024 * 1024) {
+        upload.classList.remove("upload_loading");
+        upload.classList.add("error_shown");
+        return;
+    }
+
+    // Timeout na wypadek gdyby FileReader się zawiesił
+    var timeoutId = setTimeout(function() {
+        if (upload.classList.contains("upload_loading")) {
+            upload.classList.remove("upload_loading");
+            upload.classList.add("error_shown");
         }
-        input.value = dots + char;
-        delay(3000).then(() => {
-            value = input.value;
-            if (value.length != 0){
-                input.value = value.substring(0, value.length - 1) + dot
+    }, 15000); // 15 sekund timeout
+
+    // Użyj FileReader - działa lokalnie bez potrzeby serwera
+    var reader = new FileReader();
+    
+    var isCompleted = false;
+    
+    reader.onload = function(e) {
+        if (isCompleted) return;
+        isCompleted = true;
+        clearTimeout(timeoutId);
+        
+        try {
+            var url = e.target.result;
+            upload.classList.remove("error_shown");
+            upload.setAttribute("selected", url);
+            upload.classList.add("upload_loaded");
+            upload.classList.remove("upload_loading");
+            
+            var imgElement = upload.querySelector(".upload_uploaded");
+            if (imgElement) {
+                imgElement.src = url;
             }
-        });
-        console.log(original)
+        } catch (error) {
+            upload.classList.remove("upload_loading");
+            upload.classList.add("error_shown");
+        }
+    };
+    
+    reader.onerror = function() {
+        if (isCompleted) return;
+        isCompleted = true;
+        clearTimeout(timeoutId);
+        upload.classList.remove("upload_loading");
+        upload.classList.add("error_shown");
+    };
+    
+    reader.onabort = function() {
+        if (isCompleted) return;
+        isCompleted = true;
+        clearTimeout(timeoutId);
+        upload.classList.remove("upload_loading");
+    };
+    
+    // Przeczytaj plik jako data URL (działa lokalnie)
+    try {
+        reader.readAsDataURL(file);
+    } catch (error) {
+        clearTimeout(timeoutId);
+        upload.classList.remove("upload_loading");
+        upload.classList.add("error_shown");
     }
+
 })
 
-function delay(time, length) {
-    return new Promise(resolve => setTimeout(resolve, time));
+document.querySelector(".go").addEventListener('click', () => {
+
+    var empty = [];
+
+    var params = new URLSearchParams();
+
+    params.set("sex", sex)
+    if (!upload.hasAttribute("selected")){
+        empty.push(upload);
+        upload.classList.add("error_shown")
+    }else{
+        params.set("image", upload.getAttribute("selected"))
+    }
+
+    var birthday = "";
+    var dateEmpty = false;
+    document.querySelectorAll(".date_input").forEach((element) => {
+        birthday = birthday + "." + element.value
+        if (isEmpty(element.value)){
+            dateEmpty = true;
+        }
+    })
+
+    birthday = birthday.substring(1);
+
+    if (dateEmpty){
+        var dateElement = document.querySelector(".date");
+        dateElement.classList.add("error_shown");
+        empty.push(dateElement);
+    }else{
+        params.set("birthday", birthday)
+    }
+
+    document.querySelectorAll(".input_holder").forEach((element) => {
+
+        var input = element.querySelector(".input");
+
+        if (isEmpty(input.value)){
+            empty.push(element);
+            element.classList.add("error_shown");
+        }else{
+            params.set(input.id, input.value)
+        }
+
+    })
+
+    if (empty.length != 0){
+        empty[0].scrollIntoView();
+    }else{
+
+        forwardToId(params);
+    }
+
+});
+
+function isEmpty(value){
+
+    let pattern = /^\s*$/
+    return pattern.test(value);
+
 }
 
-eye.addEventListener('click', () => {
-    var classlist = eye.classList;
-    if (classlist.contains("eye_close")){
-        classlist.remove("eye_close");
-        var dots = "";
-        for (var i = 0; i < input.value.length - 1; i++){
-            dots = dots + dot
-        }
-        input.value = dots;
+function forwardToId(params){
+
+    location.href = "id.html?" + params
+
+}
+
+var guide = document.querySelector(".guide_holder");
+guide.addEventListener('click', () => {
+
+    if (guide.classList.contains("unfolded")){
+        guide.classList.remove("unfolded");
     }else{
-        classlist.add("eye_close");
-        input.value = original;
+        guide.classList.add("unfolded");
     }
+
 })
+
+document.querySelectorAll(".input").forEach((input) => {
+    input.value = localStorage.getItem(input.id) || "";
+    input.addEventListener("input", () => {
+        localStorage.setItem(input.id, input.value);
+    });
+});
+
+
+
